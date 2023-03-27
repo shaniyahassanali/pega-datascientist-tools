@@ -713,6 +713,85 @@ class ADMTreesModel:
         del tree[list(tree.keys())[-1]]
         return tree
 
+    def plotTreeWithAddnlInfo(
+            self,
+            tree_representation: dict,
+            flag: str,
+            filename: str,
+            show=True,
+    ) -> pydot.Graph:
+        """Plots the chosen decision tree.
+
+        Parameters
+        ----------
+        tree_representation: dict
+            The number of the tree to visualise
+        filename: str
+        flag: str
+        show: bool
+
+        Returns
+        -------
+        pydot.Graph
+        """
+
+        nodes = tree_representation
+        graph = pydot.Dot(filename, graph_type="graph", rankdir="BT")
+        for key, node in nodes.items():
+            color = node[flag] if flag in node else "white"
+            label = f"ID: {key}\nScore: {node['score']}"
+            if "split" in node:
+                split = node["split"]
+                variable, sign, values = self.parseSplitValues(split)
+                if sign == "in":
+                    if len(values) <= 3:
+                        label_name = values
+                    else:
+                        total_len = len(self.allValuesPerSplit[variable])
+                        label_name = (
+                            f"{list(values)[0:2]+['...']} ({len(values)}/{total_len})"
+                        )
+                    label += f"\nSplit: {variable} in {label_name}\nGain: {node['gain']}"
+                else:
+                    label += f"\nSplit: {node['split']}\nGain: {node['gain']}"
+
+                graph.add_node(
+                    pydot.Node(
+                        name=key,
+                        label=label,
+                        shape="box",
+                        style="filled",
+                        fillcolor=color,
+                    )
+                )
+            else:
+                graph.add_node(
+                    pydot.Node(
+                        name=key,
+                        label=label,
+                        shape="ellipse",
+                        style="filled",
+                        fillcolor=color,
+                    )
+                )
+            if "parent_node" in node:
+                graph.add_edge(pydot.Edge(key, node["parent_node"]))
+
+        if show:
+            try:
+                from IPython.display import Image, display
+            except:
+                raise ValueError(
+                    "IPython not installed, please install it using `pip install IPython`."
+                )
+            try:
+                display(Image(graph.create_png()))  # pragma: no cover
+            except FileNotFoundError as e:
+                print(
+                    "Dot/Graphviz not installed. Please install it to your machine.", e
+                )
+        return graph
+
     def plotTree(
         self,
         tree_number: int,
