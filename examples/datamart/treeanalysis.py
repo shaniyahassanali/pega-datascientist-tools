@@ -9,13 +9,14 @@ file_name = "Data-Decision-ADM-ModelSnapshot_AdmModelsSnapshot_20230308T113755_G
 
 plots_folder_path = "/Users/hasss/dev/pega-datascientist-tools/output"
 
-past_n_snapshots = 4
-compare_first_n_trees = 4
+past_n_snapshots = 2
+compare_first_n_trees = 2
 
 node_left_child = "left_child"
 node_right_child = "right_child"
 split = "split"
 flag = "flag"
+depth = "depth"
 
 # colors
 flag_identical = "white"
@@ -78,25 +79,29 @@ def add_to_info(key, info_dump, data):
     return info_dump
 
 
-def can_we_highlight_recurve(node, key, color):
+def can_we_highlight_recurve(node, key, color, depth_level):
     node[key][flag] = color
+    node[key][depth] = depth_level
 
     if node_left_child in node[key]:
-        can_we_highlight_recurve(node, node[key][node_left_child], color)
+        can_we_highlight_recurve(node, node[key][node_left_child], color, depth_level+1)
 
     if node_right_child in node[key]:
-        can_we_highlight_recurve(node, node[key][node_right_child], color)
+        can_we_highlight_recurve(node, node[key][node_right_child], color, depth_level+1)
 
     return node, key
 
 
-def can_we_recurve(node1, node2, key1, key2, info_dump):
+def can_we_recurve(node1, node2, key1, key2, info_dump, depth_level1, depth_level2):
+
+    node1[key1][depth] = depth_level1
+    node2[key2][depth] = depth_level2
 
     if node_left_child not in node1[key1] and node_right_child not in node1[key1]:
         if check_prune_to_split(node1, node2, key1, key2):
             info_dump = add_to_info("prune_to_split", info_dump, {"node1": node1[key1], "node2": node2[key2]})
-            node1, key1 = can_we_highlight_recurve(node1, key1, flag_prune_to_split)
-            node2, key2 = can_we_highlight_recurve(node2, key2, flag_prune_to_split)
+            node1, key1 = can_we_highlight_recurve(node1, key1, flag_prune_to_split, depth_level1)
+            node2, key2 = can_we_highlight_recurve(node2, key2, flag_prune_to_split, depth_level2)
             return node1, node2, key1, key2, info_dump
         else:
             node1[key1][flag] = flag_leaf
@@ -107,13 +112,13 @@ def can_we_recurve(node1, node2, key1, key2, info_dump):
             node2[key2][flag] = flag_identical
         elif check_split_to_split(node1, node2, key1, key2):
             info_dump = add_to_info("split_to_split", info_dump, {"node1": node1[key1], "node2": node2[key2]})
-            node1, key1 = can_we_highlight_recurve(node1, key1, flag_split_to_split)
-            node2, key2 = can_we_highlight_recurve(node2, key2, flag_split_to_split)
+            node1, key1 = can_we_highlight_recurve(node1, key1, flag_split_to_split, depth_level1)
+            node2, key2 = can_we_highlight_recurve(node2, key2, flag_split_to_split, depth_level2)
             return node1, node2, key1, key2, info_dump
         elif check_split_to_prune(node1, node2, key1, key2):
             info_dump = add_to_info("split_to_prune", info_dump, {"node1": node1[key1], "node2": node2[key2]})
-            node1, key1 = can_we_highlight_recurve(node1, key1, flag_split_to_prune)
-            node2, key2 = can_we_highlight_recurve(node2, key2, flag_split_to_prune)
+            node1, key1 = can_we_highlight_recurve(node1, key1, flag_split_to_prune, depth_level1)
+            node2, key2 = can_we_highlight_recurve(node2, key2, flag_split_to_prune, depth_level2)
             return node1, node2, key1, key2, info_dump
         else:
             node1[key1][flag] = flag_changed
@@ -123,7 +128,7 @@ def can_we_recurve(node1, node2, key1, key2, info_dump):
     node1_left_child_key = node1[key1][node_left_child] if node_left_child in node1[key1] else None
     node2_left_child_key = node2[key2][node_left_child] if node_left_child in node2[key2] else None
     if node1_left_child_key is not None and node2_left_child_key is not None:
-        can_we_recurve(node1, node2, node1_left_child_key, node2_left_child_key, info_dump)
+        can_we_recurve(node1, node2, node1_left_child_key, node2_left_child_key, info_dump, depth_level1+1, depth_level2+1)
     else:
         node1[key1][flag] = flag_leaf
         node2[key2][flag] = flag_leaf
@@ -132,7 +137,7 @@ def can_we_recurve(node1, node2, key1, key2, info_dump):
     node1_right_child_key = node1[key1][node_right_child] if node_right_child in node1[key1] else None
     node2_right_child_key = node2[key2][node_right_child] if node_right_child in node2[key2] else None
     if node1_right_child_key is not None and node2_right_child_key is not None:
-        can_we_recurve(node1, node2, node1_right_child_key, node2_right_child_key, info_dump)
+        can_we_recurve(node1, node2, node1_right_child_key, node2_right_child_key, info_dump, depth_level1+1, depth_level2+1)
     else:
         node1[key1][flag] = flag_leaf
         node2[key2][flag] = flag_leaf
@@ -148,7 +153,7 @@ def do_compare_trees(snapshot1, snapshot2, plots_file_name1, plots_file_name2):
         snap1_tree = snapshot1[tree_name]
         snap2_tree = snapshot2[tree_name]
 
-        node1, node2, info_dump = can_we_recurve(snap1_tree, snap2_tree, 1, 1, {})
+        node1, node2, info_dump = can_we_recurve(snap1_tree, snap2_tree, 1, 1, {}, 1, 1)
 
         snapshot1["trees"].plotTreeWithAddnlInfo(node1, flag, "test1", show=False).write_png(
             f'{plots_file_name1}_{tree_name}.png')

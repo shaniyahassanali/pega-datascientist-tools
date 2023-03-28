@@ -739,7 +739,7 @@ class ADMTreesModel:
         graph = pydot.Dot(filename, graph_type="graph", rankdir="BT")
         for key, node in nodes.items():
             color = node[flag] if flag in node else "white"
-            label = f"ID: {key}\nScore: {node['score']}"
+            label = f"ID: {key}\nDepth: {node['depth']}\nScore: {node['score']}"
             if "split" in node:
                 split = node["split"]
                 variable, sign, values = self.parseSplitValues(split)
