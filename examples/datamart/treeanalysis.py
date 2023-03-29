@@ -270,15 +270,15 @@ class TreeAnalysis:
                         for change_type, nodes in to_dict.items():
                             for node_diff in nodes:
 
-                                row = [channel, snapshot1, snapshot2, snapshot2, tree_name, change_type]
+                                row = [channel, snapshot1, snapshot2, snapshot1, tree_name, change_type]
 
-                                node2 = node_diff["node2"]
+                                node = node_diff["node1"]
 
-                                predictor = node2.get(self.split).split(" ")[0] if self.split in node2 else None
+                                predictor = node.get(self.split).split(" ")[0] if self.split in node else None
                                 row.append(predictor)
 
                                 for pp in properties:
-                                    prop_value = node2.get(pp, None)
+                                    prop_value = node.get(pp, None)
                                     row.append(prop_value)
 
                                 rows.append(row)
@@ -286,6 +286,7 @@ class TreeAnalysis:
         columns.extend(properties)
         df = pd.DataFrame(rows, columns=columns)
         self.df = pl.from_dataframe(df)
+        return self.df
 
 
 # def main():
