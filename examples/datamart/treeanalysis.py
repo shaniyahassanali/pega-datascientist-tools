@@ -8,11 +8,20 @@ from collections import OrderedDict
 
 class TreeAnalysis:
 
-    def __init__(self, past_n_snapshots=2, compare_first_n_trees=2):
-        self.folder_path = "/Users/hasss/dev/bol.com/modelSnapshots/"
-        self.model_filename = "Data-Decision-ADM-ModelSnapshot_AdmModelsSnapshot_20230308T113755_GMT/data.json"
+    def __init__(self, past_n_snapshots=2, compare_first_n_trees=2, folder_path=None, model_filename=None, plots_folder_path=None):
+        self.folder_path = folder_path if folder_path is not None else "../../data/"
 
-        self.plots_folder_path = "/Users/hasss/dev/pega-datascientist-tools/output"
+        self.model_df = None
+
+        # picking an existing model snapshot file from data folder for now
+        if model_filename is None:
+            import glob
+            model_snapshot_file = glob.glob(f'{self.folder_path}Data-Decision-ADM-ModelSnapshot*.zip')[0]
+            self.model_filename = model_snapshot_file.split("/")[-1]
+        else:
+            self.model_filename = model_filename
+        
+        self.plots_folder_path = plots_folder_path if plots_folder_path is not None else "../../output"
         self.do_validate_folder(self.plots_folder_path)
 
         self.past_n_snapshots = past_n_snapshots
@@ -226,7 +235,20 @@ class TreeAnalysis:
 
         self.do_compare_snapshots(comparison_dict)
 
+    def check_processed(self):
+        rootdir = self.plots_folder_path
+        self.do_validate_folder(rootdir)
+
+        for file in os.listdir(rootdir):
+            d = os.path.join(rootdir, file)
+            if os.path.isdir(d):
+                return True
+        return False
+
     def get_df(self):
+        if not self.check_processed():
+            self.process()
+
         rows = []
         properties = ["score", "parent_node", "gain", "split", "left_child", "right_child", "depth", "flag"]
 
