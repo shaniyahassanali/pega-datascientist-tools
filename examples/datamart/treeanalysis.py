@@ -8,7 +8,9 @@ from collections import OrderedDict
 
 class TreeAnalysis:
 
-    def __init__(self, past_n_snapshots=2, compare_first_n_trees=2, folder_path=None, model_filename=None, plots_folder_path=None):
+    def __init__(self, past_n_snapshots=2, compare_first_n_trees=2, folder_path=None, model_filename=None, plots_folder_path=None, verbose=False):
+        self.verbose = verbose
+
         self.folder_path = folder_path if folder_path is not None else "../../data/"
 
         self.model_df = None
@@ -51,14 +53,13 @@ class TreeAnalysis:
         if not os.path.exists(path):
             os.makedirs(path)
 
-    @staticmethod
-    def write_to_file(info_dump, path_to_write, tree_name):
+    def write_to_file(self, info_dump, path_to_write, tree_name):
         reformat_path = path_to_write.split("/")[:-1]
         reformat_filename = f'{reformat_path[-1]}_{tree_name}_info.json'
         reformat_path = f'{"/".join(reformat_path)}/{reformat_filename}'
         with open(reformat_path, 'w') as wr:
             wr.write(json.dumps(info_dump))
-        print(f'Write to file: {reformat_path}')
+        if self.verbose: print(f'Write to file: {reformat_path}') 
 
     def check_if_identical(self, tree1, tree2, idx1, idx2):
         if self.split in tree1[idx1] and self.split in tree2[idx2]:
@@ -123,6 +124,7 @@ class TreeAnalysis:
             if self.check_if_identical(node1, node2, key1, key2):
                 node1[key1][self.flag] = self.flag_identical
                 node2[key2][self.flag] = self.flag_identical
+                info_dump = self.add_to_info("identical", info_dump, {"node1": node1[key1], "node2": node2[key2]})
             elif self.check_split_to_split(node1, node2, key1, key2):
                 info_dump = self.add_to_info("split_to_split", info_dump, {"node1": node1[key1], "node2": node2[key2]})
                 node1, key1 = self.can_we_highlight_recurve(node1, key1, self.flag_split_to_split, depth_level1)
@@ -160,7 +162,7 @@ class TreeAnalysis:
     def do_compare_trees(self, snapshot1, snapshot2, plots_file_name1, plots_file_name2):
         for i in range(1, self.compare_first_n_trees + 1):
             tree_name = f'tree{i}'
-            print(f'Comparing {tree_name} and {tree_name}')
+            if self.verbose: print(f'Comparing {tree_name} and {tree_name}')
 
             snap1_tree = snapshot1[tree_name]
             snap2_tree = snapshot2[tree_name]
@@ -173,12 +175,12 @@ class TreeAnalysis:
                 f'{plots_file_name2}_{tree_name}.png')
 
             self.write_to_file(info_dump, plots_file_name1, tree_name)
-            print(f'Processed {tree_name} and {tree_name}')
+            if self.verbose: print(f'Processed {tree_name} and {tree_name}')
 
     def do_compare_snapshots(self, in_comparison):
 
         for channel, snapshots in in_comparison.items():
-            print(f'Processing for channel: {channel}')
+            if self.verbose: print(f'Processing for channel: {channel}')
             plots_folder_path_channel = f'{self.plots_folder_path}/{channel}'
             self.do_validate_folder(plots_folder_path_channel)
 
@@ -269,20 +271,18 @@ class TreeAnalysis:
 
                         for change_type, nodes in to_dict.items():
                             for node_diff in nodes:
-
-                                row = [channel, snapshot1, snapshot2, snapshot1, tree_name, change_type]
-
-                                node = node_diff["node1"]
-
-                                predictor = node.get(self.split).split(" ")[0] if self.split in node else None
-                                row.append(predictor)
-
-                                for pp in properties:
-                                    prop_value = node.get(pp, None)
-                                    row.append(prop_value)
-
-                                rows.append(row)
-        columns = ["channel", "snapshot_from", "snapshot_to", "snapshot", "tree_id", "change_type", "predictor"]
+                                node_keys = node_diff.keys()
+                                for node_key in node_keys:
+                                    node1 = node_diff[node_key]
+                                    row_node1 = [channel, snapshot1, snapshot2, snapshot1, tree_name, change_type, node_key]
+                                    predictor_node1 = node1.get(self.split).split(" ")[0] if self.split in node1 else None
+                                    row_node1.append(predictor_node1)
+                                    for pp in properties:
+                                        prop_value = node1.get(pp, None)
+                                        row_node1.append(prop_value)
+                                    rows.append(row_node1)
+                                
+        columns = ["channel", "snapshot_from", "snapshot_to", "snapshot", "tree_id", "change_type", "node", "predictor"]
         columns.extend(properties)
         df = pd.DataFrame(rows, columns=columns)
         self.df = pl.from_dataframe(df)
