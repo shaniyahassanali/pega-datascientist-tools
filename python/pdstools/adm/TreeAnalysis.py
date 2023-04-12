@@ -2,7 +2,7 @@ import pandas as pd
 import polars as pl
 import os
 import json
-from pdstools import ADMDatamart
+from .ADMDatamart import ADMDatamart
 from collections import OrderedDict
 
 
@@ -42,8 +42,8 @@ class TreeAnalysis:
         self.flag_changed = "darkorchid"
         self.flag_leaf = "azure2"
 
-        self.flag_split_to_prune = "brown1"
-        self.flag_split_to_split = "crimson"
+        self.flag_split_to_prune = "crimson"
+        self.flag_split_to_split = "goldenrod"
         self.flag_prune_to_split = "cornflowerblue"
 
         self.df = None
@@ -63,8 +63,24 @@ class TreeAnalysis:
 
     def check_if_identical(self, tree1, tree2, idx1, idx2):
         if self.split in tree1[idx1] and self.split in tree2[idx2]:
-            if tree1[idx1][self.split] == tree2[idx2][self.split]:
+            split1 = tree1[idx1][self.split]
+            split2 = tree2[idx2][self.split]
+            separators = ["<", " in "]
+
+            c1, c2 = 'a', 'b'
+
+            if any(x in split1 for x in separators):
+                c1 = split1.split(" ")[0].strip()
+
+            if any(x in split2 for x in separators):
+                c2 = split2.split(" ")[0].strip()
+
+            if c1 == c2:
                 return True
+
+            if split1 == split2:
+                return True
+
         return False
 
     def check_prune_to_split(self, tree1, tree2, idx1, idx2):
@@ -111,12 +127,13 @@ class TreeAnalysis:
         node1[key1][self.depth] = depth_level1
         node2[key2][self.depth] = depth_level2
 
+        # for leaf node
         if self.node_left_child not in node1[key1] and self.node_right_child not in node1[key1]:
             if self.check_prune_to_split(node1, node2, key1, key2):
-                info_dump = self.add_to_info("prune_to_split", info_dump, {"node1": node1[key1], "node2": node2[key2]})
                 node1, key1 = self.can_we_highlight_recurve(node1, key1, self.flag_prune_to_split, depth_level1)
                 node2, key2 = self.can_we_highlight_recurve(node2, key2, self.flag_prune_to_split, depth_level2)
-                return node1, node2, key1, key2, info_dump
+                info_dump = self.add_to_info("prune_to_split", info_dump, {"node1": node1[key1], "node2": node2[key2]})
+                return node1, node2, info_dump
             else:
                 node1[key1][self.flag] = self.flag_leaf
                 node2[key2][self.flag] = self.flag_leaf
@@ -126,22 +143,22 @@ class TreeAnalysis:
                 node2[key2][self.flag] = self.flag_identical
                 info_dump = self.add_to_info("identical", info_dump, {"node1": node1[key1], "node2": node2[key2]})
             elif self.check_split_to_split(node1, node2, key1, key2):
-                info_dump = self.add_to_info("split_to_split", info_dump, {"node1": node1[key1], "node2": node2[key2]})
                 node1, key1 = self.can_we_highlight_recurve(node1, key1, self.flag_split_to_split, depth_level1)
                 node2, key2 = self.can_we_highlight_recurve(node2, key2, self.flag_split_to_split, depth_level2)
-                return node1, node2, key1, key2, info_dump
+                info_dump = self.add_to_info("split_to_split", info_dump, {"node1": node1[key1], "node2": node2[key2]})
+                return node1, node2, info_dump
             elif self.check_split_to_prune(node1, node2, key1, key2):
-                info_dump = self.add_to_info("split_to_prune", info_dump, {"node1": node1[key1], "node2": node2[key2]})
                 node1, key1 = self.can_we_highlight_recurve(node1, key1, self.flag_split_to_prune, depth_level1)
                 node2, key2 = self.can_we_highlight_recurve(node2, key2, self.flag_split_to_prune, depth_level2)
-                return node1, node2, key1, key2, info_dump
+                info_dump = self.add_to_info("split_to_prune", info_dump, {"node1": node1[key1], "node2": node2[key2]})
+                return node1, node2, info_dump
             else:
                 node1[key1][self.flag] = self.flag_changed
                 node2[key2][self.flag] = self.flag_changed
 
         # do for left
-        node1_left_child_key = node1[key1][self.node_left_child] if self.node_left_child in node1[key1] else None
-        node2_left_child_key = node2[key2][self.node_left_child] if self.node_left_child in node2[key2] else None
+        node1_left_child_key = node1[key1].get(self.node_left_child, None)
+        node2_left_child_key = node2[key2].get(self.node_left_child, None)
         if node1_left_child_key is not None and node2_left_child_key is not None:
             self.can_we_recurve(node1, node2, node1_left_child_key, node2_left_child_key, info_dump, depth_level1+1, depth_level2+1)
         else:
@@ -149,8 +166,8 @@ class TreeAnalysis:
             node2[key2][self.flag] = self.flag_leaf
 
         # do for right
-        node1_right_child_key = node1[key1][self.node_right_child] if self.node_right_child in node1[key1] else None
-        node2_right_child_key = node2[key2][self.node_right_child] if self.node_right_child in node2[key2] else None
+        node1_right_child_key = node1[key1].get(self.node_right_child, None)
+        node2_right_child_key = node2[key2].get(self.node_right_child, None)
         if node1_right_child_key is not None and node2_right_child_key is not None:
             self.can_we_recurve(node1, node2, node1_right_child_key, node2_right_child_key, info_dump, depth_level1+1, depth_level2+1)
         else:
@@ -180,7 +197,8 @@ class TreeAnalysis:
     def do_compare_snapshots(self, in_comparison):
 
         for channel, snapshots in in_comparison.items():
-            if self.verbose: print(f'Processing for channel: {channel}')
+            print(f'Processing for channel: {channel}')
+
             plots_folder_path_channel = f'{self.plots_folder_path}/{channel}'
             self.do_validate_folder(plots_folder_path_channel)
 
@@ -273,14 +291,14 @@ class TreeAnalysis:
                             for node_diff in nodes:
                                 node_keys = node_diff.keys()
                                 for node_key in node_keys:
-                                    node1 = node_diff[node_key]
-                                    row_node1 = [channel, snapshot1, snapshot2, snapshot1, tree_name, change_type, node_key]
-                                    predictor_node1 = node1.get(self.split).split(" ")[0] if self.split in node1 else None
-                                    row_node1.append(predictor_node1)
+                                    node = node_diff[node_key]
+                                    row_node = [channel, snapshot1, snapshot2, snapshot1, tree_name, change_type, node_key]
+                                    predictor_node = node.get(self.split).split(" ")[0] if self.split in node else None
+                                    row_node.append(predictor_node)
                                     for pp in properties:
-                                        prop_value = node1.get(pp, None)
-                                        row_node1.append(prop_value)
-                                    rows.append(row_node1)
+                                        prop_value = node.get(pp, None)
+                                        row_node.append(prop_value)
+                                    rows.append(row_node)
                                 
         columns = ["channel", "snapshot_from", "snapshot_to", "snapshot", "tree_id", "change_type", "node", "predictor"]
         columns.extend(properties)

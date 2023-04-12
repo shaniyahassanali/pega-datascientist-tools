@@ -12,6 +12,7 @@ from pathlib import Path
 from .adm.ADMDatamart import ADMDatamart
 from .adm.ADMTrees import ADMTrees, MultiTrees
 from .pega_io import getToken, readDSExport
+from .adm.TreeAnalysis import TreeAnalysis
 from .pega_io import File, API, S3
 from .pega_io.API import setupAzureOpenAI
 from .utils import cdh_utils, datasets, errors, hds_utils
