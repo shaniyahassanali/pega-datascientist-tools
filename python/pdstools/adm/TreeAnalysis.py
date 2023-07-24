@@ -3,12 +3,19 @@ import polars as pl
 import os
 import json
 from .ADMDatamart import ADMDatamart
+from .ADMTrees import ADMTrees
 from collections import OrderedDict
+
+import pydot
+
+import zlib
+import base64
 
 
 class TreeAnalysis:
 
-    def __init__(self, past_n_snapshots=2, compare_first_n_trees=2, folder_path=None, model_filename=None, plots_folder_path=None, verbose=False):
+    def __init__(self, past_n_snapshots=2, compare_first_n_trees=2, folder_path=None, model_filename=None,
+                 plots_folder_path=None, verbose=False):
         self.verbose = verbose
 
         self.folder_path = folder_path if folder_path is not None else "../../data/"
@@ -22,7 +29,7 @@ class TreeAnalysis:
             self.model_filename = model_snapshot_file.split("/")[-1]
         else:
             self.model_filename = model_filename
-        
+
         self.plots_folder_path = plots_folder_path if plots_folder_path is not None else "../../output"
         self.do_validate_folder(self.plots_folder_path)
 
@@ -59,7 +66,7 @@ class TreeAnalysis:
         reformat_path = f'{"/".join(reformat_path)}/{reformat_filename}'
         with open(reformat_path, 'w') as wr:
             wr.write(json.dumps(info_dump))
-        if self.verbose: print(f'Write to file: {reformat_path}') 
+        if self.verbose: print(f'Write to file: {reformat_path}')
 
     def check_if_identical(self, tree1, tree2, idx1, idx2):
         if self.split in tree1[idx1] and self.split in tree2[idx2]:
@@ -115,10 +122,10 @@ class TreeAnalysis:
         node[key][self.depth] = depth_level
 
         if self.node_left_child in node[key]:
-            self.can_we_highlight_recurve(node, node[key][self.node_left_child], color, depth_level+1)
+            self.can_we_highlight_recurve(node, node[key][self.node_left_child], color, depth_level + 1)
 
         if self.node_right_child in node[key]:
-            self.can_we_highlight_recurve(node, node[key][self.node_right_child], color, depth_level+1)
+            self.can_we_highlight_recurve(node, node[key][self.node_right_child], color, depth_level + 1)
 
         return node, key
 
@@ -160,7 +167,8 @@ class TreeAnalysis:
         node1_left_child_key = node1[key1].get(self.node_left_child, None)
         node2_left_child_key = node2[key2].get(self.node_left_child, None)
         if node1_left_child_key is not None and node2_left_child_key is not None:
-            self.can_we_recurve(node1, node2, node1_left_child_key, node2_left_child_key, info_dump, depth_level1+1, depth_level2+1)
+            self.can_we_recurve(node1, node2, node1_left_child_key, node2_left_child_key, info_dump, depth_level1 + 1,
+                                depth_level2 + 1)
         else:
             node1[key1][self.flag] = self.flag_leaf
             node2[key2][self.flag] = self.flag_leaf
@@ -169,7 +177,8 @@ class TreeAnalysis:
         node1_right_child_key = node1[key1].get(self.node_right_child, None)
         node2_right_child_key = node2[key2].get(self.node_right_child, None)
         if node1_right_child_key is not None and node2_right_child_key is not None:
-            self.can_we_recurve(node1, node2, node1_right_child_key, node2_right_child_key, info_dump, depth_level1+1, depth_level2+1)
+            self.can_we_recurve(node1, node2, node1_right_child_key, node2_right_child_key, info_dump, depth_level1 + 1,
+                                depth_level2 + 1)
         else:
             node1[key1][self.flag] = self.flag_leaf
             node2[key2][self.flag] = self.flag_leaf
@@ -203,9 +212,9 @@ class TreeAnalysis:
             self.do_validate_folder(plots_folder_path_channel)
 
             s_keys = list(snapshots)
-            for i in range(0, len(snapshots)-1):
+            for i in range(0, len(snapshots) - 1):
                 snapshot_time1 = s_keys[i]
-                snapshot_time2 = s_keys[i+1]
+                snapshot_time2 = s_keys[i + 1]
                 print(f'Comparing snapshots {snapshot_time1} and {snapshot_time2}')
 
                 snap1 = snapshots[snapshot_time1]
@@ -224,7 +233,8 @@ class TreeAnalysis:
 
     def process(self):
 
-        dm = ADMDatamart(self.folder_path, model_filename=self.model_filename, predictor_filename=None, include_cols=["Modeldata"])
+        dm = ADMDatamart(self.folder_path, model_filename=self.model_filename, predictor_filename=None,
+                         include_cols=["Modeldata"])
 
         multi_trees_obj = dm.get_AGB_models()
 
@@ -292,14 +302,15 @@ class TreeAnalysis:
                                 node_keys = node_diff.keys()
                                 for node_key in node_keys:
                                     node = node_diff[node_key]
-                                    row_node = [channel, snapshot1, snapshot2, snapshot1, tree_name, change_type, node_key]
+                                    row_node = [channel, snapshot1, snapshot2, snapshot1, tree_name, change_type,
+                                                node_key]
                                     predictor_node = node.get(self.split).split(" ")[0] if self.split in node else None
                                     row_node.append(predictor_node)
                                     for pp in properties:
                                         prop_value = node.get(pp, None)
                                         row_node.append(prop_value)
                                     rows.append(row_node)
-                                
+
         columns = ["channel", "snapshot_from", "snapshot_to", "snapshot", "tree_id", "change_type", "node", "predictor"]
         columns.extend(properties)
         df = pd.DataFrame(rows, columns=columns)
@@ -307,22 +318,182 @@ class TreeAnalysis:
         return self.df
 
 
-# def main():
-#     tree_analysis = TreeAnalysis(past_n_snapshots='all', compare_first_n_trees=4)
-#     # tree_analysis.process()
-#     tree_analysis.get_df()
-#     print(1)
+class MiniAdmTrees:
+    def __init__(self, model_filename):
 
-#     # snapshots_list = modelData.select(
-#     #     pl.col("SnapshotTime").sort_by("SnapshotTime", descending=True)
-#     # ).unique().limit(past_n_snapshots).collect().rows()
-#     #
-#     # model_snapshots = []
-#     # for snapshot in snapshots_list:
-#     #     model_snapshots.append(modelData.filter(pl.col("SnapshotTime").is_in(snapshot)).collect())
-#     # modelData.filter(pl.col("SnapshotTime").is_in(snapshots_list))
+        with open(model_filename) as f:
+            file = json.load(f)
 
+        self.successRate = file['successRate']
+        self.auc = file['auc']
+        self.model = file['model']['booster']['trees']
+        self.predictors = None
 
-# if __name__ == "__main__":
-#     main()
+    def get_nodes_recurve(self, tree, nodes_list, node_id, parent_node_id, depth_level):
+        curr_node_id = node_id
 
+        node_info = {}
+        for key, val in tree.items():
+            if key not in ['right', 'left']:
+                node_info[key] = val
+        node_info['depth'] = depth_level
+
+        nodes_list[curr_node_id] = node_info
+
+        if parent_node_id is not None:
+            nodes_list[curr_node_id]['parent_node'] = parent_node_id
+
+        if 'left' in tree.keys():
+            left_node_id = node_id + 1
+            nodes_list[curr_node_id]['left_child'] = left_node_id
+            nodes_list, node_id = self.get_nodes_recurve(tree['left'], nodes_list,
+                                                         left_node_id, curr_node_id, depth_level+1)
+
+        if 'right' in tree.keys():
+            right_node_id = node_id + 1
+            nodes_list[curr_node_id]['right_child'] = right_node_id
+            nodes_list, node_id = self.get_nodes_recurve(tree['right'], nodes_list,
+                                                         right_node_id, curr_node_id, depth_level+1)
+
+        return nodes_list, node_id
+
+    def get_tree_representation(self, tree_idx):
+        tree = self.model[tree_idx]
+
+        node_info, nb_nodes = self.get_nodes_recurve(tree, nodes_list=OrderedDict(),
+                                                     node_id=1, parent_node_id=None, depth_level=1)
+
+        return node_info
+    
+    def get_split_statistics(self, tree_idx=None):
+        param_split = 'split'
+
+        columns = ['tree_idx', 'node_id', 'score', 'gain', 'sampleCount',
+                   'predictor', 'sign', 'values',
+                   'depth', 'left_child', 'right_child']
+
+        def get_rows(in_tree_idx):
+            rows_ = []
+            nodes_dict = self.get_tree_representation(in_tree_idx)
+            for node_key, node in nodes_dict.items():
+                if param_split in node:
+                    predictor, sign, values = self.parse_split_values(node[param_split], decode=False)
+
+                    rows_.append([
+                        in_tree_idx,
+                        node_key,
+                        node.get('score', None),
+                        node.get('gain', None),
+                        node.get('sampleCount', None),
+                        predictor,
+                        sign,
+                        values,
+                        node.get('depth', None),
+                        node.get('left_child', None),
+                        node.get('right_child', None)
+                    ])
+            return rows_
+
+        selected_indexes = []
+        if tree_idx is None:
+            selected_indexes.extend(range(len(self.model)))
+        else:
+            selected_indexes = [tree_idx]
+
+        rows_list = []
+        for idx in selected_indexes:
+            rows = get_rows(idx)
+            rows_list.extend(rows)
+
+        df = pd.DataFrame(rows_list, columns=columns)
+        return pl.from_dataframe(df)
+
+    def get_predictors(self):
+        self.predictors = self.get_split_statistics()["predictor"].unique()
+        return self.predictors
+            
+    @staticmethod
+    def parse_split_values(value, decode=True):
+
+        items = value.split(" ")
+        predictor = items[0]
+        sign = items[1]
+        values = items[2:]
+
+        if decode:
+            if values[0] == "{" and values[-1] == "}":
+                strip_values = " ".join(values[1:-1]).split(",")
+                values = [x.strip() for x in strip_values]
+                values = set(values)
+            elif len(values) == 1 and isinstance(values, list):
+                values = values[0]
+        else:
+            values = " ".join(values)
+
+        return predictor, sign, values
+
+    def plot_tree(self, tree_idx, highlight=None, show=True):
+
+        nodes = self.get_tree_representation(tree_idx)
+
+        graph = pydot.Dot("my_graph", graph_type="graph", rankdir="BT")
+
+        for key, node in nodes.items():
+            color = "white"
+
+            label = f"Score: {node['score']}"
+
+            if "split" in node:
+
+                split = node["split"]
+
+                variable, sign, values = self.parse_split_values(split)
+
+                color = highlight.get(variable, "white")
+
+                if sign == "in":
+                    if len(values) <= 3:
+                        label_name = values
+                    else:
+                        label_name = (f"{list(values)[0:2]+['...']}")
+                    label += f"\nSplit: {variable} in {label_name}\nGain: {node['gain']}"
+
+                else:
+                    label += f"\nSplit: {node['split']}\nGain: {node['gain']}"
+
+                graph.add_node(
+                    pydot.Node(
+                        name=key,
+                        label=label,
+                        shape="box",
+                        style="filled",
+                        fillcolor=color,
+                    )
+                )
+            else:
+                graph.add_node(
+                    pydot.Node(
+                        name=key,
+                        label=label,
+                        shape="ellipse",
+                        style="filled",
+                        fillcolor=color,
+                    )
+                )
+            if "parent_node" in node:
+                graph.add_edge(pydot.Edge(key, node["parent_node"]))
+
+        if show:
+            try:
+                from IPython.display import Image, display
+            except:
+                raise ValueError(
+                    "IPython not installed, please install it using `pip install IPython`."
+                )
+            try:
+                display(Image(graph.create_png()))  # pragma: no cover
+            except FileNotFoundError as e:
+                print(
+                    "Dot/Graphviz not installed. Please install it to your machine.", e
+                )
+        return graph
