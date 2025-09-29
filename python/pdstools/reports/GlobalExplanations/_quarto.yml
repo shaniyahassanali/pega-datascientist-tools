@@ -24,7 +24,6 @@ execute:
   eval: true
 format:
   html:
-    embed-resources: false
     theme:
     - cosmo
     - brand
