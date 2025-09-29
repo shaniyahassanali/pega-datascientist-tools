@@ -22,8 +22,11 @@ website:
 execute:
   echo: false
   eval: true
+  freeze: true
+  cache: true
 format:
   html:
+    embed-resources: false
     theme:
     - cosmo
     - brand
