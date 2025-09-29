@@ -22,7 +22,6 @@ website:
 execute:
   echo: false
   eval: true
-  freeze: true
 format:
   html:
     embed-resources: false
