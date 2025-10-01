@@ -1,7 +1,5 @@
 project:
   type: website
-  pre-render:
-    - scripts/generate_report.py
   render:
     - getting-started.qmd
     - overview.qmd
@@ -17,7 +15,6 @@ website:
       href: getting-started.qmd
     - text: "Overview"
       href: overview.qmd
-    - auto: "by-context/plt-*.qmd"
         
 execute:
   echo: false
